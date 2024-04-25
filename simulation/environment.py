@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def main():	
+def main():
 	
 	# Simulation parameters
 	Nx                     = 400    # resolution x-dir
@@ -36,6 +36,11 @@ def main():
 	# Prep figure
 	fig = plt.figure(figsize=(4,2), dpi=80)
 	
+    # Point object initialization
+	point_trail = []
+	point_pos = np.array([1.25*Nx/4, Ny/4], dtype=float)  # Use dtype=float for continuous position updates
+	point_vel = np.array([0, 0.01], dtype=float)  # Initial velocity
+	
 	# Simulation Main Loop
 	for it in range(Nt):
 		print(it)
@@ -45,17 +50,14 @@ def main():
 			F[:,:,i] = np.roll(F[:,:,i], cx, axis=1)
 			F[:,:,i] = np.roll(F[:,:,i], cy, axis=0)
 		
-		
 		# Set reflective boundaries
 		bndryF = F[cylinder,:]
 		bndryF = bndryF[:,[0,5,6,7,8,1,2,3,4]]
 	
-		
 		# Calculate fluid variables
 		rho = np.sum(F,2)
 		ux  = np.sum(F*cxs,2) / rho
 		uy  = np.sum(F*cys,2) / rho
-		
 		
 		# Apply Collision
 		Feq = np.zeros(F.shape)
@@ -67,6 +69,12 @@ def main():
 		# Apply boundary 
 		F[cylinder,:] = bndryF
 		
+		sample_pos_x = int(np.clip(point_pos[0], 0, Nx-1))
+		sample_pos_y = int(np.clip(point_pos[1], 0, Ny-1))
+		local_fluid_vel = np.array([ux[sample_pos_y, sample_pos_x], uy[sample_pos_y, sample_pos_x]])
+		overall_vel = point_vel + local_fluid_vel
+		point_pos += overall_vel
+		point_trail.append(point_pos.copy())
 		
 		# plot in real time - color 1/2 particles blue, other half red
 		if (plotRealTime and (it % 10) == 0) or (it == Nt-1):
@@ -80,6 +88,9 @@ def main():
 			plt.imshow(vorticity, cmap='bwr')
 			plt.imshow(~cylinder, cmap='gray', alpha=0.3)
 			plt.clim(-.1, .1)
+			for trail_pos in point_trail:
+				plt.plot(trail_pos[0], trail_pos[1], 'o', color='black', markersize=1)
+			plt.plot(point_pos[0], point_pos[1], 'o', color='black', markersize=3)
 			ax = plt.gca()
 			ax.invert_yaxis()
 			ax.get_xaxis().set_visible(False)
@@ -87,14 +98,11 @@ def main():
 			ax.set_aspect('equal')	
 			plt.pause(0.001)
 			
-	
 	# Save figure
 	plt.savefig('latticeboltzmann.png',dpi=240)
 	plt.show()
 	    
 	return 0
-
-
 
 if __name__== "__main__":
   main()
