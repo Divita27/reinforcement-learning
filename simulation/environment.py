@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 
 def main():
 	
@@ -21,7 +22,7 @@ def main():
 	# Initial Conditions
 	F = np.ones((Ny,Nx,NL)) #* rho0 / NL
 	np.random.seed(42)
-	F += 0.01*np.random.randn(Ny,Nx,NL)
+	# F += 0.01*np.random.randn(Ny,Nx,NL)
 	X, Y = np.meshgrid(range(Nx), range(Ny))
 	# F[:,:,3] += 2 * (1+0.2*np.cos(2*np.pi*X/Nx*4))
 	F[:,:,3] = 2.3
@@ -30,16 +31,41 @@ def main():
 		F[:,:,i] *= rho0 / rho
 	
 	# Cylinder boundary
+	radius = Ny / 16
 	X, Y = np.meshgrid(range(Nx), range(Ny))
-	cylinder = (X - Nx/4)**2 + (Y - Ny/2)**2 < (Ny/4)**2
-	
+	cylinder = (X - Nx/4)**2 + (Y - Ny/2)**2 < (radius)**2
+
+	# Randomly placed target circle
+	def generate_target_position(rad):
+		angle = random.uniform(0, 2 * np.pi)
+		length = random.uniform(0, 4 * rad)
+		center_x = (5 * (2 * rad)) + (Nx / 4) + (length * np.cos(angle))
+		center_y = (2.05 * (2 * rad) + (Ny / 2)) + (length * np.sin(angle))
+		return center_x, center_y
+    
+	target_center_x, target_center_y = generate_target_position(radius)
+	target_radius = radius / 3
+	target_area = (X - int(target_center_x))**2 + (Y - int(target_center_y))**2 < (int(target_radius))**2
+
+	random_area = (X - ((5 * (2 * radius)) + (Nx / 4)))**2 + (Y - ((2.05 * (2 * radius)) + (Ny / 2)))**2 < (4 * radius)**2
+	random_area_2 = (X - ((5 * (2 * radius)) + (Nx / 4)))**2 + (Y - ((-2.05 * (2 * radius) + (Ny / 2))))**2 < (4 * radius)**2
+
 	# Prep figure
 	fig = plt.figure(figsize=(4,2), dpi=80)
+
+	def generate_swimmer_position(rad):
+		angle = random.uniform(0, 2 * np.pi)
+		length = random.uniform(0, 4 * rad)
+		center_x = (5 * (2 * rad)) + (Nx / 4) + (length * np.cos(angle))
+		center_y = (-2.05 * (2 * rad) + (Ny / 2)) + (length * np.sin(angle))
+		return center_x, center_y
 	
     # Point object initialization
 	point_trail = []
-	point_pos = np.array([1.25*Nx/4, Ny/4], dtype=float)  # Use dtype=float for continuous position updates
-	point_vel = np.array([0, 0.01], dtype=float)  # Initial velocity
+	# point_pos = np.array([1.25*Nx/4, Ny/4], dtype=float)  # Use dtype=float for continuous position updates
+	point_pos = np.array(generate_swimmer_position(radius), dtype=float)
+	point_vel = np.array([0,0], dtype=float)  # Initial velocity
+	arrow_length = 100
 	
 	# Simulation Main Loop
 	for it in range(Nt):
@@ -72,6 +98,8 @@ def main():
 		sample_pos_x = int(np.clip(point_pos[0], 0, Nx-1))
 		sample_pos_y = int(np.clip(point_pos[1], 0, Ny-1))
 		local_fluid_vel = np.array([ux[sample_pos_y, sample_pos_x], uy[sample_pos_y, sample_pos_x]])
+		# print(ux[0,1], uy[0,1])
+		# exit()
 		overall_vel = point_vel + local_fluid_vel
 		point_pos += overall_vel
 		point_trail.append(point_pos.copy())
@@ -87,16 +115,21 @@ def main():
 			vorticity = np.ma.array(vorticity, mask=cylinder)
 			plt.imshow(vorticity, cmap='bwr')
 			plt.imshow(~cylinder, cmap='gray', alpha=0.3)
+			plt.contour(cylinder, levels=[0.5], colors='black', linewidths=1)
+			plt.contour(target_area, levels=[0], colors='black', linewidths=1)
+			plt.contour(random_area, levels=[0], colors='red', linewidths=1)
+			plt.contour(random_area_2, levels=[0], colors='green', linewidths=1)
 			plt.clim(-.1, .1)
 			for trail_pos in point_trail:
 				plt.plot(trail_pos[0], trail_pos[1], 'o', color='black', markersize=1)
 			plt.plot(point_pos[0], point_pos[1], 'o', color='black', markersize=3)
+			plt.arrow(point_pos[0], point_pos[1], arrow_length * point_vel[0], arrow_length * point_vel[1], color='black', head_width=1)
 			ax = plt.gca()
 			ax.invert_yaxis()
 			ax.get_xaxis().set_visible(False)
 			ax.get_yaxis().set_visible(False)
 			ax.set_aspect('equal')	
-			plt.pause(0.001)
+			plt.pause(0.00001)
 			
 	# Save figure
 	plt.savefig('latticeboltzmann.png',dpi=240)
