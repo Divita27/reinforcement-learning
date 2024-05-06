@@ -15,7 +15,7 @@ class VortexENV(gym.Env):
         pygame.init()
 
         # gym init
-        self.action_space = spaces.Box(low=np.array([0]), high=np.array([360]), dtype=np.float32)
+        self.action_space = spaces.Box(low=np.array([0]), high=np.array([360]), dtype=np.float32) # FIXME: UserWarning coming
         self.observation_space = spaces.Box(low=0, high=255, shape=(4,), dtype=np.float32)
         
         # Constants
@@ -34,7 +34,8 @@ class VortexENV(gym.Env):
         self.BLACK = (0, 0, 0)
 
         # screen setup
-        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE)
+        self.screen.fill(self.BACKGROUND_COLOR)
         pygame.display.set_caption("Von Kármán Vortex Street Simulation")
 
         # Flow field parameters
@@ -47,17 +48,25 @@ class VortexENV(gym.Env):
         self.cxs = np.array([0, 0, 1, 1, 1, 0, -1, -1, -1])
         self.cys = np.array([0, 1, 1, 0, -1, -1, -1, 0, 1])
         self.weights = np.array([4/9, 1/9, 1/36, 1/9, 1/36, 1/9, 1/36, 1/9, 1/36])
-        
-        self.init_simulation()
 
-    def reset(self):
-        self.done = False
+        # Defining the elements of the simulation
+        X, Y = np.meshgrid(range(self.Nx), range(self.Ny))
+        self.cylinder = (X - self.Nx // 4) ** 2 + (Y - self.Ny // 2) ** 2 < (self.Ny // 4) ** 2
+        self.orange_circle_y = self.HEIGHT // 4
+        self.green_circle_y = 3 * self.HEIGHT // 4
+
+        self.reset()
+
+    def reset(self, start_time="random"):
+        self.init_simulation(start_time)
+        self.n_steps = 0
         self.v = 0.096
         self.x, self.y = self.spawn_boat()
         self.target_x, self.target_y = self.spawn_target()
         self.boat_theta = self.action_space.sample()
         self.v_x = np.sin(np.deg2rad(self.boat_theta)) * self.v
         self.v_y = np.cos(np.deg2rad(self.boat_theta)) * self.v
+        self.update_flow_field()
         
         rel_goal_x = self.target_x - self.x
         rel_goal_y = self.target_y - self.y
@@ -65,9 +74,31 @@ class VortexENV(gym.Env):
         bg_vel_x = self.ux[int(self.y), int(self.x)]
         bg_vel_y = self.uy[int(self.y), int(self.x)]
 
-        self.observation = [rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y]
+        observation = (rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y)
 
-        return self.observation, {}
+        return observation
+    
+    def init_simulation(self, start_time):
+        if start_time == "random":
+            timesteps = np.loadtxt('random_timesteps.txt', dtype=int)
+            random_timestep = np.random.choice(timesteps)
+            # print(f"Randomly selected timestep: {random_timestep}")
+
+            # Loading the presaved flow states
+            flow_states = np.load('saved_states.npy')
+
+            index = np.where(timesteps == random_timestep)[0][0]
+            self.F = np.array(flow_states[index])
+            # print(self.F)
+
+        else:
+            # Initialize flow field
+            self.F = np.ones((self.Ny, self.Nx, self.NL))  # Distribution function
+            # self.F += 0.01 * np.random.randn(self.Ny, self.Nx, self.NL)
+            self.F[:, :, 3] = 2.3  # Adjust initial distribution
+            self.rho = np.sum(self.F, 2)
+            for i in self.idxs:
+                self.F[:, :, i] *= self.rho0 / self.rho
     
     def step(self, angle_degrees):
         angle_radians = math.radians(angle_degrees)
@@ -99,15 +130,17 @@ class VortexENV(gym.Env):
         bg_vel_y = self.uy[min(int(self.y), 399), min(int(self.x), 399)]
         
         # Termination check
-        self.observation = (rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y)
-        self.done, target_reached = self.check_terminal_state()
+        observation = (rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y)
+        done, target_reached = self.check_terminal_state()
         
         # Reward
         reward = -1 + 10 * ((distance_previous - distance_current) / self.v) + \
             200 if target_reached else 0
+        
+        self.n_steps += 1
 
         # Return the changes in position and the velocities
-        return self.observation, reward, self.done, {}
+        return observation, reward, done, {}
 
     def check_terminal_state(self):
         # Check if the point is out of bounds
@@ -121,20 +154,6 @@ class VortexENV(gym.Env):
             return True, True
     
         return False, False
-
-    def init_simulation(self):
-        self.F = np.ones((self.Ny, self.Nx, self.NL))  # Distribution function
-        # self.F += 0.01 * np.random.randn(self.Ny, self.Nx, self.NL)
-        self.F[:, :, 3] = 2.3  # Adjust initial distribution
-        self.rho = np.sum(self.F, 2)
-        for i in self.idxs:
-            self.F[:, :, i] *= self.rho0 / self.rho
-        X, Y = np.meshgrid(range(self.Nx), range(self.Ny))
-        self.cylinder = (X - self.Nx // 4) ** 2 + (Y - self.Ny // 2) ** 2 < (self.Ny // 4) ** 2
-        self.orange_circle_y = self.HEIGHT // 4
-        self.green_circle_y = 3 * self.HEIGHT // 4
-        self.update_flow_field()
-        self.reset()
 
     def spawn_boat(self):
         angle = random.uniform(0, 2 * math.pi)
@@ -160,7 +179,6 @@ class VortexENV(gym.Env):
             self.F[:, :, i] = np.roll(self.F[:, :, i], cy, axis=0)
         bndryF = self.F[self.cylinder, :]
         bndryF = bndryF[:, [0, 5, 6, 7, 8, 1, 2, 3, 4]]
-        self.F[self.cylinder, :] = bndryF
         rho = np.sum(self.F, 2)
         self.ux = np.sum(self.F * self.cxs, 2) / rho
         self.uy = np.sum(self.F * self.cys, 2) / rho
@@ -168,6 +186,7 @@ class VortexENV(gym.Env):
         for i, cx, cy, w in zip(self.idxs, self.cxs, self.cys, self.weights):
             Feq[:, :, i] = rho * w * (1 + 3 * (cx * self.ux + cy * self.uy) + 9 * (cx * self.ux + cy * self.uy)**2 / 2 - 3 * (self.ux**2 + self.uy**2) / 2)
         self.F += -(1.0 / self.tau) * (self.F - Feq)
+        self.F[self.cylinder, :] = bndryF
 
     def draw_quiver(self):
         grid_size = 10
@@ -197,7 +216,6 @@ class VortexENV(gym.Env):
                     pygame.draw.line(self.screen, self.BLUE, (end_x, end_y), (right_arrow_x, right_arrow_y), 2)
 
     def render(self):
-
         self.draw_quiver()
         pygame.draw.circle(self.screen, self.BLACK, (self.Nx // 4, self.Ny // 2), self.Ny // 4 + 10)
         pygame.draw.circle(self.screen, self.GREEN, (self.CIRCLE_X, self.green_circle_y), self.RADIUS, self.BORDER_WIDTH) # start-spawncircle
@@ -235,7 +253,18 @@ class VortexENV(gym.Env):
         sys.exit()
 
 if __name__ == "__main__":
-    sim = VortexENV()
-    sim.baseline_test()
-    pygame.quit()
-    sys.exit()
+    env = VortexENV()
+    # env.reset(start_time="zero")
+    # env.baseline_test()
+    for i in range(2):
+        observation = env.reset()
+        done = False
+        while not done:
+            action = env.action_space.sample()[0]
+            # print(f"Action: {action}")
+            observation, reward, done, info = env.step(action)
+            if done:
+                print(f"Episode finished after {env.n_steps} steps")
+                env.reset()
+            env.render()
+    env.close()
