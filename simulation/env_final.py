@@ -30,7 +30,9 @@ class LatticeBoltzmannSimulation:
         self.velocity = 0.09
         self.point_vel = np.array([0, 0], dtype=float)
         self.point_trail = []
-        self.timestep = random.randint(900, 3000)
+        # self.timestep = random.randint(900, 3000)
+        self.timestep = 1
+        print(self.timestep)
         self.play_simulation(self.timestep - 1)
         return self.get_state()
 
@@ -92,7 +94,9 @@ class LatticeBoltzmannSimulation:
         bndryF = bndryF[:, [0, 5, 6, 7, 8, 1, 2, 3, 4]]
         self.F[self.cylinder, :] = bndryF
 
-    def update_position(self):
+    def update_position(self, action):
+        # Update the velocity of the point object
+        self.point_vel = self.velocity * np.array([np.cos(action), np.sin(action)])
         sample_pos_x = int(np.clip(self.point_pos[0], 0, self.Nx - 1))
         sample_pos_y = int(np.clip(self.point_pos[1], 0, self.Ny - 1))
         ux = np.sum(self.F * self.cxs, 2) / self.rho
@@ -110,7 +114,12 @@ class LatticeBoltzmannSimulation:
 
     def is_done(self):
         # Check if the point has reached the target area
-        
+        sample_pos_x = int(np.clip(self.point_pos[0], 0, self.Nx - 1))
+        sample_pos_y = int(np.clip(self.point_pos[1], 0, self.Ny - 1))
+        if self.target_area[sample_pos_y, sample_pos_x] == 1:
+            return True
+        if self.point_pos[0] < 0 or self.point_pos[0] >= self.Nx or self.point_pos[1] < 0 or self.point_pos[1] >= self.Ny:
+            return True
         return False
 
     def render(self):
@@ -134,10 +143,11 @@ class LatticeBoltzmannSimulation:
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
         ax.set_aspect('equal')
-        # plt.pause(0.001)
+        plt.pause(0.001)
 
 if __name__ == "__main__":
     simulation = LatticeBoltzmannSimulation()
+    print("hello")
     for _ in range(100):
-        simulation.step(None)
+        simulation.step(random.uniform(0, 2 * np.pi))
         simulation.render()
