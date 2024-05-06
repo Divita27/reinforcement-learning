@@ -5,6 +5,8 @@ import math
 import numpy as np
 from gym import spaces
 import gym
+# import gymnasium
+# from gymnasium import spaces
 
 class VortexENV(gym.Env):
     def __init__(self, width=400, height=200, radius=40):
@@ -46,9 +48,7 @@ class VortexENV(gym.Env):
         self.cys = np.array([0, 1, 1, 0, -1, -1, -1, 0, 1])
         self.weights = np.array([4/9, 1/9, 1/36, 1/9, 1/36, 1/9, 1/36, 1/9, 1/36])
         
-
         self.init_simulation()
-        self.update_flow_field()
 
     def reset(self):
         self.done = False
@@ -61,51 +61,45 @@ class VortexENV(gym.Env):
         
         rel_goal_x = self.target_x - self.x
         rel_goal_y = self.target_y - self.y
-        self.observation = [rel_goal_x, rel_goal_y, self.v_x, self.v_y]
+
+        bg_vel_x = self.ux[int(self.y), int(self.x)]
+        bg_vel_y = self.uy[int(self.y), int(self.x)]
+
+        self.observation = [rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y]
 
         return self.observation, {}
     
     def step(self, angle_degrees):
         angle_radians = math.radians(angle_degrees)
-
-        # Update velocities based on the angle and speed
         new_v_x = self.v * math.cos(angle_radians)
         new_v_y = self.v * math.sin(angle_radians)
         
-        vel_x = self.ux + new_v_x
-        vel_y = self.uy + new_v_y
+        vel_x = self.ux[int(self.y), int(self.x)] + new_v_x
+        vel_y = self.uy[int(self.y), int(self.x)] + new_v_y
 
         # Store previous position of point
         previous_position = np.array([self.x, self.y])
-        
-        # Update the point's position
         self.x += vel_x
         self.y += vel_y
-        
+
         # Update the flow
         self.update_flow_field()
-        
-        # store current position of point
         current_position = np.array([self.x, self.y])
-        
-        # store target postion as an array
         target_position = np.array([self.target_x, self.target_y])
         
         # Relative distance for reward
         distance_previous = np.linalg.norm(previous_position - target_position)
         distance_current = np.linalg.norm(current_position - target_position)
         
-        # getting relative position from target
-        delta_x = self.target_x - self.x
-        delta_y = self.target_y - self.y
+        rel_goal_x = self.target_x - self.x
+        rel_goal_y = self.target_y - self.y
         
         # getting the background velocity at the new position
-        bg_vel_x = self.ux[int(self.x)]
-        bg_vel_y = self.uy[int(self.y)]
-        
-        observation = (delta_x, delta_y, bg_vel_x, bg_vel_y)
+        bg_vel_x = self.ux[min(int(self.y), 399), min(int(self.x), 399)]
+        bg_vel_y = self.uy[min(int(self.y), 399), min(int(self.x), 399)]
         
         # Termination check
+        self.observation = (rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y)
         self.done, target_reached = self.check_terminal_state()
         
         # Reward
@@ -113,7 +107,7 @@ class VortexENV(gym.Env):
             200 if target_reached else 0
 
         # Return the changes in position and the velocities
-        return observation, reward, self.done, {}
+        return self.observation, reward, self.done, {}
 
     def check_terminal_state(self):
         # Check if the point is out of bounds
@@ -139,6 +133,7 @@ class VortexENV(gym.Env):
         self.cylinder = (X - self.Nx // 4) ** 2 + (Y - self.Ny // 2) ** 2 < (self.Ny // 4) ** 2
         self.orange_circle_y = self.HEIGHT // 4
         self.green_circle_y = 3 * self.HEIGHT // 4
+        self.update_flow_field()
         self.reset()
 
     def spawn_boat(self):

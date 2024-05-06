@@ -3,7 +3,7 @@ from env import VortexENV
 
 # check env thorugh stable baselines
 env = VortexENV()
-# check_env(env)
+check_env(env)
 
 # check env again !
 episodes = 50
@@ -13,5 +13,5 @@ for episode in range(episodes):
 	while not done:
 		random_action = env.action_space.sample()
 		print("action selected: ", random_action)
-		obs, reward, done, trun, info = env.step(random_action)
+		obs, reward, done, info = env.step(random_action)
 		print("reward: ", reward)
