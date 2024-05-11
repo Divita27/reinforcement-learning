@@ -23,7 +23,6 @@ class VortexENV(gym.Env):
 
         # gym init
         self.action_space = spaces.Box(low=np.array([0]), high=np.array([360]), dtype=np.float32) # FIXME: UserWarning coming
-        # self.action_space = spaces.Discrete(360)
         self.observation_space = spaces.Box(low=np.array([-self.WIDTH, -self.HEIGHT, -5, -5]), high=np.array([self.WIDTH, self.HEIGHT, 5, 5]), shape=(4,), dtype=np.float32)
 
         # Colors
@@ -61,12 +60,12 @@ class VortexENV(gym.Env):
     def reset(self, start_time="random"):
         self.init_simulation(start_time)
         self.n_steps = 0
-        self.v = 5
+        self.v = 2
         self.x, self.y = self.spawn_boat()
         self.target_x, self.target_y = self.spawn_target()
-        self.boat_theta = self.action_space.sample()
-        self.v_x = np.sin(np.deg2rad(self.boat_theta)) * self.v
-        self.v_y = np.cos(np.deg2rad(self.boat_theta)) * self.v
+        self.angle_rad = random.uniform(-math.pi, math.pi)
+        self.v_x = np.sin(self.angle_rad) * self.v
+        self.v_y = np.cos(self.angle_rad) * self.v
         self.update_flow_field()
         
         rel_goal_x = self.target_x - self.x
@@ -75,7 +74,7 @@ class VortexENV(gym.Env):
         bg_vel_x = self.ux[int(self.y), int(self.x)]
         bg_vel_y = self.uy[int(self.y), int(self.x)]
 
-        observation = (rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y)
+        observation = (rel_goal_x/self.WIDTH, rel_goal_y/self.HEIGHT, bg_vel_x, bg_vel_y)
 
         return observation
     
@@ -103,9 +102,10 @@ class VortexENV(gym.Env):
     
     def step(self, action):
         # print(action)
-        angle_radians = math.radians(action)
-        new_v_x = self.v * math.cos(angle_radians)
-        new_v_y = self.v * math.sin(angle_radians)
+        # angle_radians = math.radians(action)
+        self.angle_rad = action * math.pi
+        new_v_x = self.v * math.cos(self.angle_rad)
+        new_v_y = self.v * math.sin(self.angle_rad)
         
         vel_x = self.ux[int(self.y), int(self.x)] + new_v_x
         vel_y = self.uy[int(self.y), int(self.x)] + new_v_y
@@ -132,17 +132,17 @@ class VortexENV(gym.Env):
         bg_vel_y = self.uy[min(int(self.y), 199), min(int(self.x), 399)]
         
         # Termination check
-        observation = (rel_goal_x, rel_goal_y, bg_vel_x, bg_vel_y)
+        observation = (rel_goal_x/self.WIDTH, rel_goal_y/self.HEIGHT, bg_vel_x, bg_vel_y)
         done, target_reached = self.check_terminal_state()
         
         # Reward
         reward = -1 + 10 * ((distance_previous - distance_current) / self.v) + \
-            200 if target_reached else 0
+            (200 if target_reached else 0)
         
         self.n_steps += 1
         
-        self.render()
-        # Return the changes in position and the velocities
+        # self.render()
+
         return observation, reward, done, {}
 
     def check_terminal_state(self):
@@ -218,7 +218,7 @@ class VortexENV(gym.Env):
                     pygame.draw.line(self.screen, self.BLUE, (end_x, end_y), (left_arrow_x, left_arrow_y), 2)
                     pygame.draw.line(self.screen, self.BLUE, (end_x, end_y), (right_arrow_x, right_arrow_y), 2)
 
-    def render(self):
+    def render(self, angle_rad=None):
         self.screen.fill(self.BACKGROUND_COLOR)
         self.draw_quiver()
         pygame.draw.circle(self.screen, self.BLACK, (self.Nx // 4, self.Ny // 2), self.Ny // 4 + 10)
@@ -226,6 +226,15 @@ class VortexENV(gym.Env):
         pygame.draw.circle(self.screen, self.ORANGE, (self.CIRCLE_X, self.orange_circle_y), self.RADIUS, self.BORDER_WIDTH) # target-spawn circle
         pygame.draw.circle(self.screen, self.BLACK, (int(self.x), int(self.y)), 5) # boat
         pygame.draw.circle(self.screen, self.RED, (int(self.target_x), int(self.target_y)), self.RADIUS/3) # targe-spawn circle
+        # draw the heading of the boat
+        if angle_rad is not None:
+            heading_x = self.x + 10 * math.cos(angle_rad)
+            heading_y = self.y + 10 * math.sin(angle_rad)
+            pygame.draw.line(self.screen, self.RED, (int(self.x), int(self.y)), (int(heading_x), int(heading_y)), 3)
+        else:
+            heading_x = self.x + 10 * math.cos(self.angle_rad)
+            heading_y = self.y + 10 * math.sin(self.angle_rad)
+            pygame.draw.line(self.screen, self.RED, (int(self.x), int(self.y)), (int(heading_x), int(heading_y)), 3)
         pygame.display.update()
 
     def baseline_test(self):
