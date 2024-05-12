@@ -1,2 +1,3 @@
 *.zip
 *.npy
+./tmp_old/*

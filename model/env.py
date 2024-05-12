@@ -60,7 +60,7 @@ class VortexENV(gym.Env):
     def reset(self, start_time="random"):
         self.init_simulation(start_time)
         self.n_steps = 0
-        self.v = 2
+        self.v = 0.1
         self.x, self.y = self.spawn_boat()
         self.target_x, self.target_y = self.spawn_target()
         self.angle_rad = random.uniform(-math.pi, math.pi)
