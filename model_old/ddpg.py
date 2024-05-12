@@ -68,7 +68,6 @@ class CriticNetwork(nn.Module):
         self.fc2_dims = fc2_dims
         self.n_actions = n_actions
         self.checkpoint_file = os.path.join(chkpt_dir,name+'_ddpg')
-        os.makedirs(os.path.dirname(self.checkpoint_file), exist_ok=True)
         self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims)
         f1 = 1./np.sqrt(self.fc1.weight.data.size()[0])
         T.nn.init.uniform_(self.fc1.weight.data, -f1, f1)
@@ -129,7 +128,6 @@ class ActorNetwork(nn.Module):
         self.fc2_dims = fc2_dims
         self.n_actions = n_actions
         self.checkpoint_file = os.path.join(chkpt_dir,name+'_ddpg')
-        os.makedirs(os.path.dirname(self.checkpoint_file), exist_ok=True)
         self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims)
         f1 = 1./np.sqrt(self.fc1.weight.data.size()[0])
         T.nn.init.uniform_(self.fc1.weight.data, -f1, f1)
@@ -206,15 +204,32 @@ class Agent(object):
 
         self.update_network_parameters(tau=1)
 
+    # def choose_action(self, observation):
+    #     self.actor.eval()
+    #     observation = T.tensor(observation, dtype=T.float).to(self.actor.device)
+    #     mu = self.actor.forward(observation).to(self.actor.device)
+    #     mu_prime = mu + T.tensor(self.noise(),
+    #                              dtype=T.float).to(self.actor.device)
+    #     self.actor.train()
+    #     return mu_prime.cpu().detach().numpy()
+    
     def choose_action(self, observation):
-        self.actor.eval()
-        observation = T.tensor(observation, dtype=T.float).to(self.actor.device)
-        mu = self.actor.forward(observation).to(self.actor.device)
-        mu_prime = mu + T.tensor(self.noise(),
-                                 dtype=T.float).to(self.actor.device)
-        mu_prime = T.clamp(mu_prime, -1, 1) # TODO: Check if this is necessary
-        self.actor.train()
-        return mu_prime.cpu().detach().numpy()
+        self.actor.eval()  # Set the actor network to evaluation mode
+        observation = T.tensor(observation, dtype=T.float).to(self.actor.device)  # Convert observation to tensor
+        mu = self.actor.forward(observation).to(self.actor.device)  # Get the action from the actor network
+        
+        # Add noise for exploration
+        mu_prime = mu + T.tensor(self.noise(), dtype=T.float).to(self.actor.device)
+        
+        mu_prime = T.clip(mu_prime, -1, 1)
+        
+        # Rescale the actions from [-1, 1] to [0, 360]
+        mu_prime_rescaled = ((mu_prime + 1.0) / 2.0) * 360
+        
+        self.actor.train()  # Set the actor network back to training mode
+        return mu_prime_rescaled.cpu().detach().numpy()
+
+
 
     def remember(self, state, action, reward, new_state, done):
         self.memory.store_transition(state, action, reward, new_state, done)
