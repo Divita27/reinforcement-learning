@@ -2,3 +2,4 @@
 *.npy
 ./tmp_old/*
 *.txt
+./tmp_*/*
