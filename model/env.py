@@ -23,8 +23,8 @@ class VortexENV(gym.Env):
         self.agent_type = agent
 
         # gym init
-        self.action_space = spaces.Box(low=np.array([0]), high=np.array([360]), dtype=np.float32) # FIXME: UserWarning coming
-        self.observation_space = spaces.Box(low=np.array([-self.WIDTH, -self.HEIGHT, -5, -5]), high=np.array([self.WIDTH, self.HEIGHT, 5, 5]), shape=(4,), dtype=np.float32)
+        # self.action_space = spaces.Box(low=np.array([-1]), high=np.array([1]), dtype=np.float32) # FIXME: UserWarning coming
+        # self.observation_space = spaces.Box(low=np.array([-self.WIDTH, -self.HEIGHT, -5, -5]), high=np.array([self.WIDTH, self.HEIGHT, 5, 5]), shape=(4,), dtype=np.float32)
 
         # Colors
         self.ORANGE = (255, 165, 0)
@@ -148,7 +148,7 @@ class VortexENV(gym.Env):
         
         # Getting the nackground voticity for current timestep
         current_vorticity_matrix = (np.roll(self.ux, -1, axis=0) - np.roll(self.ux, 1, axis=0)) - (np.roll(self.uy, -1, axis=1) - np.roll(self.uy, 1, axis=1))
-        current_vorticity = current_vorticity_matrix[int(self.y), int(self.x)]
+        current_vorticity = current_vorticity_matrix[min(int(self.y), 199), min(int(self.x), 399)]
         
         # returing observation space based on agent type
         if self.agent_type == "velocity":
@@ -166,7 +166,7 @@ class VortexENV(gym.Env):
         
         # Reward
         reward = -1 + 10 * ((distance_previous - distance_current) / self.v) + \
-            (200 if target_reached else 0)
+            (10000 if target_reached else 0)
         
         self.n_steps += 1
         
