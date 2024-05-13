@@ -126,8 +126,8 @@ def main():
 			vorticity[cylinder] = np.nan
 			vorticity = np.ma.array(vorticity, mask=cylinder)
 			# plot velocity
-			# plt.imshow(np.sqrt(ux**2 + uy**2), cmap='viridis')
-			plt.quiver(X[::10,::10], Y[::10,::10], ux[::10,::10], uy[::10,::10], color='black')
+			plt.imshow(np.sqrt(ux**2 + uy**2), cmap='viridis')
+			# plt.quiver(X[::10,::10], Y[::10,::10], ux[::10,::10], uy[::10,::10], color='black')
 			# plt.imshow(vorticity, cmap='bwr')
 			plt.imshow(~cylinder, cmap='gray', alpha=0.3)
 			plt.contour(cylinder, levels=[0.5], colors='black', linewidths=1)

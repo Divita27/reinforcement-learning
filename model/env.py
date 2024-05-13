@@ -9,7 +9,7 @@ import gym
 # from gymnasium import spaces
 
 class VortexENV(gym.Env):
-    def __init__(self, width=400, height=200, radius=40, agent = 'velocity'):
+    def __init__(self, width=400, height=100, radius=20, agent = 'velocity'):
         
         super(VortexENV, self).__init__()
         pygame.init()
@@ -18,12 +18,12 @@ class VortexENV(gym.Env):
         self.WIDTH = width
         self.HEIGHT = height
         self.RADIUS = radius
-        self.CIRCLE_X = 3 * self.WIDTH // 4
+        self.CIRCLE_X = 1 * self.WIDTH // 2
         self.BORDER_WIDTH = 5
         self.agent_type = agent
 
         # gym init
-        # self.action_space = spaces.Box(low=np.array([-1]), high=np.array([1]), dtype=np.float32) # FIXME: UserWarning coming
+        # self.action_space = spaces.Box(low=np.array([-1]), high=np.array([1]), dtype=np.float32)
         # self.observation_space = spaces.Box(low=np.array([-self.WIDTH, -self.HEIGHT, -5, -5]), high=np.array([self.WIDTH, self.HEIGHT, 5, 5]), shape=(4,), dtype=np.float32)
 
         # Colors
@@ -42,7 +42,7 @@ class VortexENV(gym.Env):
         # Flow field parameters
         self.Nx = self.WIDTH
         self.Ny = self.HEIGHT
-        self.rho0 = 100
+        self.rho0 = 200
         self.tau = 0.6
         self.NL = 9
         self.idxs = np.arange(self.NL)
@@ -52,7 +52,7 @@ class VortexENV(gym.Env):
 
         # Defining the elements of the simulation
         X, Y = np.meshgrid(range(self.Nx), range(self.Ny))
-        self.cylinder = (X - self.Nx // 4) ** 2 + (Y - self.Ny // 2) ** 2 < (self.Ny // 4) ** 2
+        self.cylinder = (X - self.Nx // 4) ** 2 + (Y - self.Ny // 2) ** 2 < (self.Ny // 9) ** 2
         self.orange_circle_y = self.HEIGHT // 4
         self.green_circle_y = 3 * self.HEIGHT // 4
 
@@ -105,7 +105,7 @@ class VortexENV(gym.Env):
         else:
             # Initialize flow field
             self.F = np.ones((self.Ny, self.Nx, self.NL))  # Distribution function
-            # self.F += 0.01 * np.random.randn(self.Ny, self.Nx, self.NL)
+            self.F += 0.01 * np.random.randn(self.Ny, self.Nx, self.NL)
             self.F[:, :, 3] = 2.3  # Adjust initial distribution
             self.rho = np.sum(self.F, 2)
             for i in self.idxs:
@@ -206,6 +206,10 @@ class VortexENV(gym.Env):
         return x, y
 
     def update_flow_field(self):
+        # Absorbing velocity boundary
+        self.F[:, -1, [6,7,8]] = self.F[:, -2, [6,7,8]] # right boundary
+        self.F[:, 0, [2,3,4]] = self.F[:, 1, [2,3,4]] # left boundary
+
         for i, cx, cy in zip(self.idxs, self.cxs, self.cys):
             self.F[:, :, i] = np.roll(self.F[:, :, i], cx, axis=1)
             self.F[:, :, i] = np.roll(self.F[:, :, i], cy, axis=0)
@@ -214,6 +218,8 @@ class VortexENV(gym.Env):
         rho = np.sum(self.F, 2)
         self.ux = np.sum(self.F * self.cxs, 2) / rho
         self.uy = np.sum(self.F * self.cys, 2) / rho
+        self.ux[self.cylinder] = 0
+        self.uy[self.cylinder] = 0
         Feq = np.zeros(self.F.shape)
         for i, cx, cy, w in zip(self.idxs, self.cxs, self.cys, self.weights):
             Feq[:, :, i] = rho * w * (1 + 3 * (cx * self.ux + cy * self.uy) + 9 * (cx * self.ux + cy * self.uy)**2 / 2 - 3 * (self.ux**2 + self.uy**2) / 2)
@@ -221,7 +227,7 @@ class VortexENV(gym.Env):
         self.F[self.cylinder, :] = bndryF
 
     def draw_quiver(self):
-        grid_size = 10
+        grid_size = 7
         for row in range(0, self.Ny, grid_size):
             for col in range(0, self.Nx, grid_size):
                 center_x, center_y = col + grid_size // 2, row + grid_size // 2
@@ -250,7 +256,7 @@ class VortexENV(gym.Env):
     def render(self, angle_rad=None):
         self.screen.fill(self.BACKGROUND_COLOR)
         self.draw_quiver()
-        pygame.draw.circle(self.screen, self.BLACK, (self.Nx // 4, self.Ny // 2), self.Ny // 4 + 10)
+        pygame.draw.circle(self.screen, self.BLACK, (self.Nx // 4, self.Ny // 2), self.Ny // 9)
         pygame.draw.circle(self.screen, self.GREEN, (self.CIRCLE_X, self.green_circle_y), self.RADIUS, self.BORDER_WIDTH) # start-spawncircle
         pygame.draw.circle(self.screen, self.ORANGE, (self.CIRCLE_X, self.orange_circle_y), self.RADIUS, self.BORDER_WIDTH) # target-spawn circle
         pygame.draw.circle(self.screen, self.BLACK, (int(self.x), int(self.y)), 5) # boat
