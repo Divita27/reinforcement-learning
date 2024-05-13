@@ -166,7 +166,7 @@ class VortexENV(gym.Env):
         
         # Reward
         reward = -1 + 10 * ((distance_previous - distance_current) / self.v) + \
-            (10000 if target_reached else 0)
+            (200 if target_reached else 0)
         
         self.n_steps += 1
         

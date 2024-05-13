@@ -6,8 +6,8 @@ import math
 
 # TODO: add a negative reward for going out of bounds or hitting the cylinder
 
-env = VortexENV()
-agent = Agent(alpha=0.000025, beta=0.00025, input_dims=[4], tau=0.001, env=env,
+env = VortexENV(agent = "flow_blind")
+agent = Agent(alpha=0.000025, beta=0.00025, input_dims=[2], tau=0.001, env=env,
               batch_size=100, layer1_size=400, layer2_size=300, n_actions=1)
 
 #agent.load_models()

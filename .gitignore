@@ -1,5 +1,5 @@
 *.zip
 *.npy
-./tmp_old/*
+tmp_old/
 *.txt
-./tmp_*/*
+tmp_*/
